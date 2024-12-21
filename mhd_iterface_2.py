@@ -1,91 +1,49 @@
 import streamlit as st
-import pandas as pd
-import plotly.express as px
+import chess
+import chess.svg
 
 # Configuração inicial da interface
-st.set_page_config(page_title="Modelo Hipotético-Dedutivo no Xadrez", layout="centered")
-st.title("♟️ Modelo Hipotético-Dedutivo no Xadrez")
-st.write("Preencha as etapas do método para organizar suas jogadas e estratégias.")
+st.set_page_config(page_title="Editor de Tabuleiro de Xadrez", layout="centered")
+st.markdown(
+    """
+    <h1 style='font-size:32px; display: flex; align-items: center;'>
+    <img src='data:image/png;base64,<insira_o_base64_gerado_da_logo_aqui>' style='height:50px; margin-right:10px;'> Editor de Tabuleiro de Xadrez
+    </h1>
+    """,
+    unsafe_allow_html=True
+)
+st.write("Configure e visualize posições personalizadas no tabuleiro de xadrez.")
 
-# Inicialização da tabela de dados
-if "mhd_data" not in st.session_state:
-    st.session_state.mhd_data = pd.DataFrame(columns=["Etapa", "Descrição"])
+# Inicialização do tabuleiro
+if "current_board" not in st.session_state:
+    st.session_state.current_board = chess.Board()
 
-# Perguntas norteadoras para cada etapa
-perguntas = {
-    "Base Teórica": "Qual é a base de conhecimento ou estratégia que será usada como referência?",
-    "Hipótese": "O que você espera alcançar com uma jogada ou sequência de jogadas?",
-    "Consequências": "Quais reações ou respostas você espera do adversário?",
-    "Experimento": "Qual jogada ou sequência será aplicada para testar sua hipótese?",
-    "Observações": "O que aconteceu após a jogada? O resultado foi o esperado?",
-    "Avaliação": "A hipótese inicial foi confirmada, ajustada ou refutada? Por quê?"
-}
-
-# Formulário para entrada dos dados
-with st.form("mhd_form"):
-    etapa = st.selectbox("Selecione a Etapa", list(perguntas.keys()))
-    descricao = st.text_area("Responda:", perguntas[etapa], height=100)
-    submitted = st.form_submit_button("Adicionar Etapa")
-
-    if submitted:
-        if descricao.strip():
-            nova_entrada = pd.DataFrame({"Etapa": [etapa], "Descrição": [descricao]})
-            st.session_state.mhd_data = pd.concat([st.session_state.mhd_data, nova_entrada], ignore_index=True)
-            st.success(f"Etapa '{etapa}' adicionada com sucesso!")
-        else:
-            st.error("A descrição não pode estar vazia!")
-
-# Filtros para exibição da tabela
-st.subheader("Tabela do Modelo Hipotético-Dedutivo")
-col1, col2 = st.columns(2)
-
-with col1:
-    filtro_etapa = st.selectbox("Filtrar por Etapa", ["Todas"] + list(st.session_state.mhd_data["Etapa"].unique()))
-    tabela_filtrada = (
-        st.session_state.mhd_data if filtro_etapa == "Todas" else st.session_state.mhd_data[st.session_state.mhd_data["Etapa"] == filtro_etapa]
+# Função para renderizar o tabuleiro com estilo customizado
+def render_tabuleiro_customizado(board):
+    return chess.svg.board(
+        board=board, 
+        size=320,  # Reduzindo o tamanho do tabuleiro
+        style="""
+            .square.light { fill: #ffffff; }  /* Casas claras em branco */
+            .square.dark { fill: #8FBC8F; }  /* Casas escuras em verde */
+        """
     )
 
-with col2:
-    ordenar_por = st.selectbox("Ordenar por", ["Etapa", "Descrição"])
-    tabela_filtrada = tabela_filtrada.sort_values(by=ordenar_por, ignore_index=True)
-
-# Exibição da tabela dinâmica
-st.dataframe(tabela_filtrada, use_container_width=True)
-
-# Edição da tabela
-st.markdown("### Editar Entradas")
-if not st.session_state.mhd_data.empty:
-    max_index = len(st.session_state.mhd_data) - 1
-else:
-    max_index = 0
-
-linha_para_editar = st.number_input(
-    "Selecione a linha para editar (índice)",
-    min_value=0,
-    max_value=max_index,
-    step=1
+# Configuração do tabuleiro com FEN
+st.markdown("### Configuração do Tabuleiro")
+fen_input = st.text_input(
+    "Insira a notação FEN para configurar o tabuleiro:", 
+    value=st.session_state.current_board.fen()
 )
 
-texto_editado = st.text_area("Novo texto para a descrição", st.session_state.mhd_data.iloc[linha_para_editar, 1] if not st.session_state.mhd_data.empty else "")
-if st.button("Salvar Alteração"):
-    st.session_state.mhd_data.iloc[linha_para_editar, 1] = texto_editado
-    st.success("Alteração salva com sucesso!")
+if st.button("Atualizar Tabuleiro com FEN"):
+    try:
+        st.session_state.current_board.set_fen(fen_input)
+        st.success("Tabuleiro atualizado com sucesso!")
+    except ValueError:
+        st.error("Notação FEN inválida. Por favor, insira uma notação correta.")
 
-# Opção para limpar a tabela
-if st.button("Limpar Tabela"):
-    st.session_state.mhd_data = pd.DataFrame(columns=["Etapa", "Descrição"])
-    st.success("Tabela limpa com sucesso!")
+# Visualizar tabuleiro configurado
+st.markdown("### Tabuleiro Atual")
+st.image(render_tabuleiro_customizado(st.session_state.current_board), use_container_width=True)
 
-# Visualização em gráfico
-if not st.session_state.mhd_data.empty:
-    st.subheader("Análise Visual das Etapas")
-    grafico = px.histogram(st.session_state.mhd_data, x="Etapa", title="Distribuição de Etapas", text_auto=True)
-    st.plotly_chart(grafico, use_container_width=True)
-
-# Exportar a tabela para CSV
-st.download_button(
-    label="Baixar Tabela como CSV",
-    data=st.session_state.mhd_data.to_csv(index=False),
-    file_name="mhd_xadrez.csv",
-    mime="text/csv"
-)
